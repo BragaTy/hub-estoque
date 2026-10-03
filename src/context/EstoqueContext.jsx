@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabase';
+import { supabase, supabaseConfigurado } from '../supabase';
 
 export const EstoqueContext = createContext();
 
@@ -109,6 +109,8 @@ export function EstoqueProvider({ children }) {
   const buscarProduto = (codigo) => {
     return produtos.find(p => p.codigo === codigo);
   };
+
+  if (!supabaseConfigurado) return <div style={{padding: 20, textAlign: 'center', color: 'crimson'}}>Supabase não configurado: faltam os secrets VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no GitHub (Settings → Secrets and variables → Actions). Depois, rode o deploy novamente.</div>;
 
   if (carregando) return <div style={{padding: 20, textAlign: 'center'}}>Carregando banco de dados...</div>;
 
