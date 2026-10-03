@@ -1,122 +1,145 @@
 import React, { useContext } from 'react';
 import { EstoqueContext } from '../context/EstoqueContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, CalendarDays } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { TrendingUp, CalendarDays, ShoppingCart } from 'lucide-react';
 
 export default function Relatorios() {
   const { movimentacoes } = useContext(EstoqueContext);
 
-  // Filtra apenas vendas deste mes para calculo de previsao
   const hoje = new Date();
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const diasPassadosNoMes = hoje.getDate(); // Dia atual (ex: dia 15 = 15 dias de vendas)
+  const diasPassados = hoje.getDate();
 
   const vendasDoMes = movimentacoes.filter(m => m.tipo === 'saida' && new Date(m.data) >= primeiroDiaMes);
+  const faturamentoTotal = vendasDoMes.reduce((acc, m) => acc + m.total, 0);
 
-  // Agrupa quantidades vendidas por produto
-  const vendasAgrupadas = {};
-  vendasDoMes.forEach(mov => {
-    mov.itens.forEach(item => {
-      if (!vendasAgrupadas[item.nome]) vendasAgrupadas[item.nome] = 0;
-      vendasAgrupadas[item.nome] += item.quantidadeVendida;
+  // Agrupa quantidades por produto
+  const agrupado = {};
+  vendasDoMes.forEach(m => {
+    m.itens.forEach(item => {
+      if (!agrupado[item.nome]) agrupado[item.nome] = 0;
+      agrupado[item.nome] += item.quantidadeVendida;
     });
   });
 
-  const dadosGrafico = Object.keys(vendasAgrupadas).map(nome => {
-    const qtdVendida = vendasAgrupadas[nome];
-    
-    // Regra de três simples para previsão: Se vendeu X em Y dias, em 30 dias venderá Z.
-    // Previsao = (Qtd Vendida / Dias Passados) * 30
-    const previsao = Math.round((qtdVendida / diasPassadosNoMes) * 30);
+  const dadosProdutos = Object.keys(agrupado)
+    .map(nome => ({
+      nome: nome.length > 18 ? nome.slice(0, 16) + '…' : nome,
+      Vendidos: agrupado[nome],
+      Previsao: Math.round((agrupado[nome] / diasPassados) * 30),
+    }))
+    .sort((a, b) => b.Vendidos - a.Vendidos);
 
-    return {
-      nome,
-      Vendidos: qtdVendida,
-      Previsao30Dias: previsao
-    };
+  // Agrupa faturamento por dia (para gráfico de linha)
+  const porDia = {};
+  vendasDoMes.forEach(m => {
+    const dia = new Date(m.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    porDia[dia] = (porDia[dia] || 0) + m.total;
   });
-
-  // Ordena para mostrar os mais vendidos primeiro
-  dadosGrafico.sort((a, b) => b.Vendidos - a.Vendidos);
+  const dadosDia = Object.keys(porDia).map(dia => ({ dia, Faturamento: Number(porDia[dia].toFixed(2)) }));
 
   return (
-    <div className="card slide-in">
-      <h2 className="header-title">Relatórios e Inteligência</h2>
-      <p className="header-subtitle">Visualize as vendas do mês atual e a previsão matemática para repor estoque.</p>
-      
-      <div className="grid-2" style={{ marginBottom: '30px' }}>
-        <div style={{ backgroundColor: '#eff6ff', padding: '20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <CalendarDays size={40} color="#3b82f6" />
+    <div className="slide-in">
+      <h1 className="page-title">Relatórios e Inteligência</h1>
+      <p className="page-subtitle">Análise de vendas do mês atual com previsão para os próximos 30 dias.</p>
+
+      {/* Resumo rápido */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: '#dbeafe' }}><CalendarDays size={22} color="#2563eb" /></div>
           <div>
-            <h4 style={{ color: '#1e3a8a', margin: 0 }}>Dias Calculados</h4>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>{diasPassadosNoMes} dias</p>
-            <span style={{ fontSize: '0.8rem', color: '#60a5fa' }}>Referência do mês atual</span>
+            <div className="stat-value">{diasPassados}</div>
+            <div className="stat-label">Dias no mês atual</div>
           </div>
         </div>
-        <div style={{ backgroundColor: '#f0fdf4', padding: '20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <TrendingUp size={40} color="#22c55e" />
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: '#fef3c7' }}><ShoppingCart size={22} color="#d97706" /></div>
           <div>
-            <h4 style={{ color: '#14532d', margin: 0 }}>Vendas Registradas</h4>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>{vendasDoMes.length} operações</p>
-            <span style={{ fontSize: '0.8rem', color: '#4ade80' }}>Volume de saídas do mês</span>
+            <div className="stat-value">{vendasDoMes.length}</div>
+            <div className="stat-label">Vendas registradas</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: '#d1fae5' }}><TrendingUp size={22} color="#059669" /></div>
+          <div>
+            <div className="stat-value" style={{ fontSize: '1.3rem' }}>R$ {faturamentoTotal.toFixed(2)}</div>
+            <div className="stat-label">Faturamento no mês</div>
           </div>
         </div>
       </div>
 
-      <div style={{ width: '100%', height: 350, marginTop: '30px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-        <h3 style={{ textAlign: 'center', marginBottom: '20px', color: 'var(--secondary)' }}>Desempenho e Previsão (Próximos 30 dias)</h3>
-        {dadosGrafico.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dadosGrafico} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="nome" axisLine={false} tickLine={false} />
-              <YAxis axisLine={false} tickLine={false} />
-              <Tooltip cursor={{ fill: '#f1f5f9' }} />
+      {/* Gráfico de barras - produtos */}
+      <div className="card">
+        <h3 style={{ fontWeight: '700', marginBottom: '20px', color: 'var(--secondary)' }}>
+          Produtos Vendidos vs. Previsão para os 30 dias
+        </h3>
+        {dadosProdutos.length > 0 ? (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={dadosProdutos} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="nome" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} angle={-30} textAnchor="end" interval={0} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }} />
               <Legend />
-              <Bar dataKey="Vendidos" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Vendido no Mês" />
-              <Bar dataKey="Previsao30Dias" fill="#10b981" radius={[4, 4, 0, 0]} name="Previsão Final Mês" opacity={0.6} />
+              <Bar dataKey="Vendidos" name="Vendidos no Mês" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Previsao" name="Previsão Final Mês" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.65} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-            Nenhum dado de saída registrado neste mês.
+          <div className="empty-state" style={{ padding: '30px 0' }}>
+            <p>Sem dados de venda neste mês para gerar o gráfico.</p>
           </div>
         )}
       </div>
 
-      <h3 style={{ marginTop: '40px', marginBottom: '16px', color: 'var(--secondary)' }}>Histórico Recente (Últimas Operações)</h3>
-      <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '12px' }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Data e Hora</th>
-              <th>Operação</th>
-              <th>Itens</th>
-              <th style={{ textAlign: 'right' }}>Total Venda</th>
-            </tr>
-          </thead>
-          <tbody>
-            {movimentacoes.slice(0, 10).map(m => (
-              <tr key={m.id}>
-                <td>{new Date(m.data).toLocaleString('pt-BR')}</td>
-                <td>
-                  <span className={`badge ${m.tipo === 'entrada' ? 'badge-green' : 'badge-blue'}`}>
-                    {m.tipo.toUpperCase()}
-                  </span>
-                </td>
-                <td style={{ fontSize: '0.9rem' }}>
-                  {m.itens.map(i => `${i.quantidadeVendida}x ${i.nome}`).join(', ')}
-                </td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                  R$ {Number(m.total).toFixed(2)}
-                </td>
+      {/* Gráfico de linha - faturamento por dia */}
+      {dadosDia.length > 0 && (
+        <div className="card">
+          <h3 style={{ fontWeight: '700', marginBottom: '20px', color: 'var(--secondary)' }}>
+            Faturamento por Dia
+          </h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={dadosDia} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={v => `R$${v}`} />
+              <Tooltip formatter={v => `R$ ${v.toFixed(2)}`} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }} />
+              <Line type="monotone" dataKey="Faturamento" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Histórico */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '20px 24px 12px' }}>
+          <h3 style={{ fontWeight: '700', color: 'var(--secondary)' }}>Histórico de Operações</h3>
+        </div>
+        <div className="table-wrapper" style={{ border: 'none' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Data e Hora</th>
+                <th>Tipo</th>
+                <th>Itens</th>
+                <th style={{ textAlign: 'right' }}>Total</th>
               </tr>
-            ))}
-            {movimentacoes.length === 0 && (
-              <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Nenhuma operação registrada ainda.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {movimentacoes.slice(0, 15).map(m => (
+                <tr key={m.id}>
+                  <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(m.data).toLocaleString('pt-BR')}</td>
+                  <td><span className={`badge ${m.tipo === 'entrada' ? 'badge-green' : 'badge-blue'}`}>{m.tipo.toUpperCase()}</span></td>
+                  <td style={{ fontSize: '0.85rem' }}>{m.itens.map(i => `${i.quantidadeVendida}x ${i.nome}`).join(', ')}</td>
+                  <td style={{ textAlign: 'right', fontWeight: '700', color: '#059669' }}>R$ {Number(m.total).toFixed(2)}</td>
+                </tr>
+              ))}
+              {movimentacoes.length === 0 && (
+                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>Nenhuma operação ainda.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -3,73 +3,64 @@ import { EstoqueContext } from '../context/EstoqueContext';
 
 export default function Cadastro() {
   const { addProduto, buscarProduto } = useContext(EstoqueContext);
-  
-  const [codigo, setCodigo] = useState('');
-  const [nome, setNome] = useState('');
-  const [quantidade, setQuantidade] = useState('');
-  const [preco, setPreco] = useState('');
-  const [mensagem, setMensagem] = useState({ texto: '', tipo: '' });
+  const [form, setForm] = useState({ codigo: '', nome: '', quantidade: '', preco: '' });
+  const [msg, setMsg] = useState({ texto: '', tipo: '' });
 
-  const salvarProduto = (e) => {
+  const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  const salvar = (e) => {
     e.preventDefault();
+    const { codigo, nome, quantidade, preco } = form;
     if (!codigo || !nome || !quantidade || !preco) {
-      setMensagem({ texto: 'Por favor, preencha todos os campos.', tipo: 'error' });
+      setMsg({ texto: 'Preencha todos os campos antes de salvar.', tipo: 'danger' });
       return;
     }
-
     if (buscarProduto(codigo)) {
-      setMensagem({ texto: 'Já existe um produto com este código!', tipo: 'error' });
+      setMsg({ texto: `Já existe um produto com o código "${codigo}".`, tipo: 'danger' });
       return;
     }
-
-    addProduto({
-      codigo,
-      nome,
-      quantidade: Number(quantidade),
-      preco: Number(preco)
-    });
-    
-    setMensagem({ texto: 'Produto cadastrado com sucesso!', tipo: 'success' });
-    setCodigo(''); setNome(''); setQuantidade(''); setPreco('');
+    addProduto({ codigo, nome, quantidade: Number(quantidade), preco: Number(preco) });
+    setMsg({ texto: `Produto "${nome}" cadastrado com sucesso!`, tipo: 'success' });
+    setForm({ codigo: '', nome: '', quantidade: '', preco: '' });
   };
 
   return (
-    <div className="card slide-in">
-      <h2 className="header-title">Cadastro de Produto</h2>
-      <p className="header-subtitle">Adicione itens para acompanhar o estoque e vendas.</p>
-      
-      {mensagem.texto && (
-        <div style={{ padding: '16px', marginBottom: '24px', borderRadius: '12px', fontWeight: '600', backgroundColor: mensagem.tipo === 'error' ? '#fee2e2' : '#d1fae5', color: mensagem.tipo === 'error' ? '#b91c1c' : '#047857' }}>
-          {mensagem.texto}
-        </div>
-      )}
+    <div className="slide-in">
+      <h1 className="page-title">Novo Produto</h1>
+      <p className="page-subtitle">Cadastre salgados, bebidas e insumos no sistema.</p>
 
-      <form onSubmit={salvarProduto}>
-        <div className="form-group">
-          <label>Código Interno ou Código de Barras</label>
-          <input type="text" className="form-control" value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="Ex: CX01 (Coxinha) ou Bipar código..." />
-        </div>
-        
-        <div className="form-group">
-          <label>Nome do Produto / Descrição</label>
-          <input type="text" className="form-control" value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Empada de Frango com Catupiry" />
-        </div>
+      <div className="card" style={{ maxWidth: 560 }}>
+        {msg.texto && <div className={`alert alert-${msg.tipo}`}>{msg.texto}</div>}
 
-        <div className="grid-2">
+        <form onSubmit={salvar}>
           <div className="form-group">
-            <label>Quantidade Inicial</label>
-            <input type="number" className="form-control" value={quantidade} onChange={e => setQuantidade(e.target.value)} placeholder="0" />
+            <label className="form-label">Código (interno ou de barras)</label>
+            <input className="form-control" type="text" value={form.codigo} onChange={set('codigo')}
+              placeholder="Ex: 10 · 21 · 100 · 7894900011517" autoFocus />
           </div>
-          <div className="form-group">
-            <label>Preço de Venda (R$)</label>
-            <input type="number" step="0.01" className="form-control" value={preco} onChange={e => setPreco(e.target.value)} placeholder="0.00" />
-          </div>
-        </div>
 
-        <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '16px', fontSize: '1.1rem', padding: '16px' }}>
-          Finalizar Cadastro
-        </button>
-      </form>
+          <div className="form-group">
+            <label className="form-label">Nome / Descrição do produto</label>
+            <input className="form-control" type="text" value={form.nome} onChange={set('nome')}
+              placeholder="Ex: Coxinha Tradicional de Frango" />
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Quantidade inicial</label>
+              <input className="form-control" type="number" value={form.quantidade} onChange={set('quantidade')} placeholder="0" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Preço de venda (R$)</label>
+              <input className="form-control" type="number" step="0.01" value={form.preco} onChange={set('preco')} placeholder="0,00" />
+            </div>
+          </div>
+
+          <button type="submit" className="btn btn-primary btn-block" style={{ padding: '14px', fontSize: '1rem', marginTop: '8px' }}>
+            Salvar Produto
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
