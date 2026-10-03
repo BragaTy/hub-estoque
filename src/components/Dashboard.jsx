@@ -1,7 +1,8 @@
 import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { EstoqueContext } from '../context/EstoqueContext';
-import { Package, TrendingDown, AlertTriangle, DollarSign, ShoppingCart, PlusCircle, BarChart3 } from 'lucide-react';
+import { Package, TrendingDown, AlertTriangle, DollarSign, ShoppingCart, PlusCircle, BarChart3, Clock } from 'lucide-react';
+import { alertasDeRuptura } from '../utils/previsao';
 
 export default function Dashboard() {
   const { produtos, movimentacoes } = useContext(EstoqueContext);
@@ -10,6 +11,7 @@ export default function Dashboard() {
   const totalItens = produtos.reduce((acc, p) => acc + p.quantidade, 0);
   const valorEstoque = produtos.reduce((acc, p) => acc + (p.quantidade * p.preco), 0);
   const estoqueBaixo = produtos.filter(p => p.quantidade <= 5);
+  const previsoes = alertasDeRuptura(produtos, movimentacoes, 7);
 
   const hoje = new Date();
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -106,8 +108,31 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Previsão de ruptura */}
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <Clock size={20} color="#dc2626" />
+          <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Previsão de Ruptura (próximos 7 dias)</h3>
+        </div>
+        {previsoes.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            Nenhum produto deve esgotar na próxima semana (com base nas vendas dos últimos 30 dias).
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {previsoes.map(p => (
+              <div key={p.codigo} style={{ padding: '10px 12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', fontSize: '0.9rem' }}>
+                <strong>{p.nome}</strong> vende ~{p.mediaDia.toFixed(1)} un/dia e tem {p.quantidade} un. —{' '}
+                {p.diasRestantes < 1 ? 'esgota hoje!' : `esgota em ~${Math.ceil(p.diasRestantes)} dia(s).`}{' '}
+                Sugestão: repor estoque.
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Atalhos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '4px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '20px' }}>
         <Link to="/caixa" className="btn btn-primary btn-block" style={{ padding: '14px', fontSize: '1rem' }}>
           <ShoppingCart size={20} /> Abrir Caixa
         </Link>
