@@ -3,13 +3,13 @@
     {
       "codigo": "1",
       "nome": "Empada de Frango com Catupiry",
-      "quantidade": 50,
+      "quantidade": 48,
       "preco": 6.5
     },
     {
       "codigo": "2",
       "nome": "Empada de Palmito",
-      "quantidade": 30,
+      "quantidade": 29,
       "preco": 6.5
     },
     {
@@ -140,6 +140,28 @@
     }
   ],
   "movimentacoes": [
+    {
+      "id": 1790995098595,
+      "data": "2026-10-03T02:38:18.595Z",
+      "itens": [
+        {
+          "codigo": "2",
+          "nome": "Empada de Palmito",
+          "quantidade": 30,
+          "preco": 6.5,
+          "quantidadeVendida": 1
+        },
+        {
+          "codigo": "1",
+          "nome": "Empada de Frango com Catupiry",
+          "quantidade": 50,
+          "preco": 6.5,
+          "quantidadeVendida": 2
+        }
+      ],
+      "tipo": "saida",
+      "total": 19.5
+    },
     {
       "id": 1696150000000,
       "data": "2026-10-01T10:30:00.000Z",
