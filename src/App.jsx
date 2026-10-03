@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, PackageSearch, PlusCircle, BarChart3, LayoutDashboard, LogOut } from 'lucide-react';
 import { EstoqueProvider } from './context/EstoqueContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -60,7 +60,7 @@ function Conteudo() {
   if (!user) return <Login />;
   return (
     <EstoqueProvider>
-      <BrowserRouter>
+      <HashRouter>
         <div className="layout">
           <Sidebar />
           <main className="main-content">
@@ -73,7 +73,7 @@ function Conteudo() {
             </Routes>
           </main>
         </div>
-      </BrowserRouter>
+      </HashRouter>
     </EstoqueProvider>
   );
 }

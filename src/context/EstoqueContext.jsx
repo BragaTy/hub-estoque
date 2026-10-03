@@ -1,68 +1,94 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useRef } from 'react';
+import { supabase } from '../supabase';
 
 export const EstoqueContext = createContext();
 
+const CACHE_KEY = 'hub-estoque-cache';
+
+const lerCache = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY)) || null;
+  } catch {
+    return null;
+  }
+};
+
+const avisarErro = (acao, error) => {
+  if (error) {
+    console.error(`Erro no Supabase (${acao})`, error);
+    alert(`Não foi possível salvar (${acao}). Verifique a conexão.`);
+  }
+};
+
 export function EstoqueProvider({ children }) {
-  const [produtos, setProdutos] = useState([]);
-  const [movimentacoes, setMovimentacoes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  // Cache local: o estoque aparece na hora enquanto o Supabase responde
+  const cache = lerCache();
+  const [produtos, setProdutos] = useState(cache?.produtos || []);
+  const [movimentacoes, setMovimentacoes] = useState(cache?.movimentacoes || []);
+  const [carregando, setCarregando] = useState(!cache);
 
-  // Carrega do arquivo TXT ao iniciar
-  useEffect(() => {
-    fetch('/api/banco')
-      .then(res => res.json())
-      .then(data => {
-        setProdutos(data.produtos || []);
-        setMovimentacoes(data.movimentacoes || []);
-        setCarregando(false);
-      })
-      .catch(err => {
-        console.error("Erro ao carregar banco.txt", err);
-        setCarregando(false);
-      });
-  }, []);
+  // Referência ao estado mais recente, para calcular o que gravar no banco
+  const produtosRef = useRef(produtos);
+  produtosRef.current = produtos;
 
-  // Salva no arquivo TXT toda vez que algo mudar (se já tiver carregado)
+  const carregar = async () => {
+    const [p, m] = await Promise.all([
+      supabase.from('produtos').select('*').order('codigo'),
+      supabase.from('movimentacoes').select('*').order('data', { ascending: false }),
+    ]);
+    if (p.error || m.error) {
+      console.error('Erro ao carregar do Supabase', p.error || m.error);
+      setCarregando(false);
+      return;
+    }
+    setProdutos(p.data.map(x => ({ ...x, quantidade: Number(x.quantidade), preco: Number(x.preco) })));
+    setMovimentacoes(m.data.map(x => ({ ...x, total: Number(x.total) })));
+    setCarregando(false);
+  };
+
+  useEffect(() => { carregar(); }, []);
+
   useEffect(() => {
     if (!carregando) {
-      const dados = { produtos, movimentacoes };
-      fetch('/api/banco', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dados, null, 2)
-      });
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ produtos, movimentacoes }));
     }
   }, [produtos, movimentacoes, carregando]);
 
-  const addProduto = (produto) => {
-    setProdutos(prev => {
-      const existe = prev.find(p => p.codigo === produto.codigo);
-      if (existe) {
-        return prev.map(p => p.codigo === produto.codigo ? { ...p, quantidade: p.quantidade + produto.quantidade } : p);
-      }
-      return [...prev, produto];
-    });
+  const addProduto = async (produto) => {
+    const existe = produtosRef.current.find(p => p.codigo === produto.codigo);
+    const final = existe
+      ? { ...existe, quantidade: existe.quantidade + produto.quantidade }
+      : produto;
+    setProdutos(prev => existe
+      ? prev.map(p => p.codigo === produto.codigo ? final : p)
+      : [...prev, final]);
+    const { error } = await supabase.from('produtos').upsert(final);
+    avisarErro('cadastrar produto', error);
   };
 
-  const editProduto = (codigo, novosDados) => {
+  const editProduto = async (codigo, novosDados) => {
     setProdutos(prev => prev.map(p => p.codigo === codigo ? { ...p, ...novosDados } : p));
+    const { error } = await supabase.from('produtos').update(novosDados).eq('codigo', codigo);
+    avisarErro('editar produto', error);
   };
 
-  const removeProduto = (codigo) => {
+  const removeProduto = async (codigo) => {
     setProdutos(prev => prev.filter(p => p.codigo !== codigo));
+    const { error } = await supabase.from('produtos').delete().eq('codigo', codigo);
+    avisarErro('remover produto', error);
   };
 
-  const registrarCaixa = (itensCarrinho, tipo = 'saida') => {
-    setProdutos(prev => {
-      return prev.map(p => {
-        const itemNoCarrinho = itensCarrinho.find(i => i.codigo === p.codigo);
-        if (itemNoCarrinho) {
-          const novaQtd = tipo === 'saida' ? p.quantidade - itemNoCarrinho.quantidadeVendida : p.quantidade + itemNoCarrinho.quantidadeVendida;
-          return { ...p, quantidade: novaQtd };
-        }
-        return p;
-      });
+  const registrarCaixa = async (itensCarrinho, tipo = 'saida') => {
+    const atualizados = [];
+    const novos = produtosRef.current.map(p => {
+      const item = itensCarrinho.find(i => i.codigo === p.codigo);
+      if (!item) return p;
+      const novaQtd = tipo === 'saida' ? p.quantidade - item.quantidadeVendida : p.quantidade + item.quantidadeVendida;
+      const atualizado = { ...p, quantidade: novaQtd };
+      atualizados.push(atualizado);
+      return atualizado;
     });
+    setProdutos(novos);
 
     const novaMovimentacao = {
       id: Date.now(),
@@ -72,6 +98,12 @@ export function EstoqueProvider({ children }) {
       total: itensCarrinho.reduce((acc, item) => acc + (item.preco * item.quantidadeVendida), 0)
     };
     setMovimentacoes(prev => [novaMovimentacao, ...prev]);
+
+    const [r1, r2] = await Promise.all([
+      supabase.from('produtos').upsert(atualizados),
+      supabase.from('movimentacoes').insert(novaMovimentacao),
+    ]);
+    avisarErro('registrar venda', r1.error || r2.error);
   };
 
   const buscarProduto = (codigo) => {
