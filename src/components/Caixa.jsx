@@ -9,13 +9,13 @@ export default function Caixa() {
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
 
-  const adicionarAoCarrinho = (e) => {
-    e.preventDefault();
+  const adicionarPorCodigo = (codigoDigitado) => {
     setErro(''); setSucesso('');
-    if (!codigoBusca.trim()) return;
+    const codigo = String(codigoDigitado).trim();
+    if (!codigo) return;
 
-    const produto = buscarProduto(codigoBusca.trim());
-    if (!produto) { setErro(`Produto "${codigoBusca}" não encontrado.`); return; }
+    const produto = buscarProduto(codigo);
+    if (!produto) { setErro(`Produto "${codigo}" não encontrado.`); return; }
     if (produto.quantidade <= 0) { setErro(`"${produto.nome}" está sem estoque.`); return; }
 
     setCarrinho(prev => {
@@ -30,6 +30,11 @@ export default function Caixa() {
       return [...prev, { ...produto, quantidadeVendida: 1 }];
     });
     setCodigoBusca('');
+  };
+
+  const adicionarAoCarrinho = (e) => {
+    e.preventDefault();
+    adicionarPorCodigo(codigoBusca);
   };
 
   const alterarQtd = (codigo, delta) => {

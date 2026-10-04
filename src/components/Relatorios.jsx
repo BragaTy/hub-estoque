@@ -1,10 +1,21 @@
 import React, { useContext } from 'react';
 import { EstoqueContext } from '../context/EstoqueContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { TrendingUp, CalendarDays, ShoppingCart } from 'lucide-react';
+import { TrendingUp, CalendarDays, ShoppingCart, FileSpreadsheet, FileText } from 'lucide-react';
+import { baixarCSV, imprimirPDF } from '../utils/exportar';
 
 export default function Relatorios() {
   const { movimentacoes } = useContext(EstoqueContext);
+
+  const cabecalhoExport = ['Data e Hora', 'Tipo', 'Itens', 'Total (R$)'];
+  const linhasExport = () => movimentacoes.map(m => [
+    new Date(m.data).toLocaleString('pt-BR'),
+    m.tipo.toUpperCase(),
+    m.itens.map(i => `${i.quantidadeVendida}x ${i.nome}`).join(', '),
+    Number(m.total).toFixed(2).replace('.', ','),
+  ]);
+  const exportarCSV = () => baixarCSV('historico-operacoes.csv', cabecalhoExport, linhasExport());
+  const exportarPDF = () => imprimirPDF('Expresso01 - Histórico de Operações', cabecalhoExport, linhasExport());
 
   const hoje = new Date();
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -112,8 +123,16 @@ export default function Relatorios() {
 
       {/* Histórico */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '20px 24px 12px' }}>
+        <div style={{ padding: '20px 24px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <h3 style={{ fontWeight: '700', color: 'var(--secondary)' }}>Histórico de Operações</h3>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={exportarCSV} disabled={!movimentacoes.length}>
+              <FileSpreadsheet size={16} /> Baixar planilha (CSV)
+            </button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={exportarPDF} disabled={!movimentacoes.length}>
+              <FileText size={16} /> Salvar PDF
+            </button>
+          </div>
         </div>
         <div className="table-wrapper" style={{ border: 'none' }}>
           <table>

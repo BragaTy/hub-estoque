@@ -3,19 +3,19 @@
     {
       "codigo": "1",
       "nome": "Empada de Frango com Catupiry",
-      "quantidade": 48,
+      "quantidade": 47,
       "preco": 6.5
     },
     {
       "codigo": "2",
       "nome": "Empada de Palmito",
-      "quantidade": 29,
+      "quantidade": 26,
       "preco": 6.5
     },
     {
       "codigo": "3",
       "nome": "Empada de Carne Seca",
-      "quantidade": 25,
+      "quantidade": 24,
       "preco": 7
     },
     {
@@ -23,12 +23,6 @@
       "nome": "Empada Doce (Leite Condensado)",
       "quantidade": 20,
       "preco": 6
-    },
-    {
-      "codigo": "5",
-      "nome": "Mini Empada (Cento - Encomenda)",
-      "quantidade": 5,
-      "preco": 65
     },
     {
       "codigo": "10",
@@ -105,7 +99,7 @@
     {
       "codigo": "71",
       "nome": "Pão de Queijo Recheado (Frango)",
-      "quantidade": 25,
+      "quantidade": 4,
       "preco": 5.5
     },
     {
@@ -140,6 +134,35 @@
     }
   ],
   "movimentacoes": [
+    {
+      "id": 1791052969714,
+      "data": "2026-10-03T18:42:49.714Z",
+      "itens": [
+        {
+          "codigo": "1",
+          "nome": "Empada de Frango com Catupiry",
+          "quantidade": 48,
+          "preco": 6.5,
+          "quantidadeVendida": 1
+        },
+        {
+          "codigo": "2",
+          "nome": "Empada de Palmito",
+          "quantidade": 29,
+          "preco": 6.5,
+          "quantidadeVendida": 3
+        },
+        {
+          "codigo": "3",
+          "nome": "Empada de Carne Seca",
+          "quantidade": 25,
+          "preco": 7,
+          "quantidadeVendida": 1
+        }
+      ],
+      "tipo": "saida",
+      "total": 33
+    },
     {
       "id": 1790995098595,
       "data": "2026-10-03T02:38:18.595Z",
