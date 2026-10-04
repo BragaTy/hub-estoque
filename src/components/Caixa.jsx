@@ -1,6 +1,10 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo, useRef } from 'react';
 import { EstoqueContext } from '../context/EstoqueContext';
 import { ShoppingCart, Trash2, CheckCircle, Search } from 'lucide-react';
+
+// minúsculas + remoção de acentos (Unicode NFD)
+const normalizar = (s) =>
+  String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export default function Caixa() {
   const { buscarProduto, registrarCaixa, produtos } = useContext(EstoqueContext);
@@ -8,6 +12,9 @@ export default function Caixa() {
   const [carrinho, setCarrinho] = useState([]);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
+  const [indiceAtivo, setIndiceAtivo] = useState(-1);
+  const inputRef = useRef(null);
 
   const adicionarPorCodigo = (codigoDigitado) => {
     setErro(''); setSucesso('');
@@ -32,9 +39,50 @@ export default function Caixa() {
     setCodigoBusca('');
   };
 
+  const sugestoes = useMemo(() => {
+    const termo = normalizar(codigoBusca.trim());
+    if (!termo) return [];
+    return (produtos || [])
+      .filter(p => normalizar(p.nome).includes(termo) || normalizar(p.codigo).includes(termo))
+      .slice(0, 8);
+  }, [codigoBusca, produtos]);
+
+  const selecionarSugestao = (produto) => {
+    adicionarPorCodigo(produto.codigo);
+    setMostrarSugestoes(false);
+    setIndiceAtivo(-1);
+    inputRef.current?.focus();
+  };
+
   const adicionarAoCarrinho = (e) => {
     e.preventDefault();
-    adicionarPorCodigo(codigoBusca);
+    const codigo = codigoBusca.trim();
+    // Item destacado via teclado
+    if (indiceAtivo >= 0 && sugestoes[indiceAtivo]) return selecionarSugestao(sugestoes[indiceAtivo]);
+    // Bipe de leitor: código exato adiciona direto
+    if (codigo && buscarProduto(codigo)) {
+      adicionarPorCodigo(codigo);
+      setMostrarSugestoes(false);
+      inputRef.current?.focus();
+      return;
+    }
+    // Resultado único na busca por nome
+    if (sugestoes.length === 1) return selecionarSugestao(sugestoes[0]);
+    adicionarPorCodigo(codigo);
+    inputRef.current?.focus();
+  };
+
+  const aoTeclar = (e) => {
+    if (!sugestoes.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); setMostrarSugestoes(true);
+      setIndiceAtivo(i => (i + 1) % sugestoes.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceAtivo(i => (i <= 0 ? sugestoes.length - 1 : i - 1));
+    } else if (e.key === 'Escape') {
+      setMostrarSugestoes(false); setIndiceAtivo(-1);
+    }
   };
 
   const alterarQtd = (codigo, delta) => {
@@ -72,18 +120,50 @@ export default function Caixa() {
 
       <div className="card">
         <form onSubmit={adicionarAoCarrinho} className="pdv-input-row">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Digite o código e pressione Enter (ex: 10 para Coxinha)..."
-            value={codigoBusca}
-            onChange={e => { setCodigoBusca(e.target.value); setErro(''); }}
-            autoFocus
-          />
+          <div className="pdv-search-wrap">
+            <input
+              ref={inputRef}
+              type="text"
+              className="form-control"
+              placeholder="Digite o nome ou código (ex: pao, 10) e pressione Enter..."
+              value={codigoBusca}
+              onChange={e => { setCodigoBusca(e.target.value); setErro(''); setMostrarSugestoes(true); setIndiceAtivo(-1); }}
+              onKeyDown={aoTeclar}
+              onFocus={() => setMostrarSugestoes(true)}
+              onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
+              autoComplete="off"
+              autoFocus
+            />
+            {mostrarSugestoes && sugestoes.length > 0 && (
+              <ul className="pdv-sugestoes" role="listbox">
+                {sugestoes.map((p, i) => (
+                  <li
+                    key={p.codigo}
+                    role="option"
+                    aria-selected={i === indiceAtivo}
+                    className={`pdv-sugestao${i === indiceAtivo ? ' ativo' : ''}${p.quantidade <= 0 ? ' sem-estoque' : ''}`}
+                    onMouseDown={e => e.preventDefault()}
+                    onMouseEnter={() => setIndiceAtivo(i)}
+                    onClick={() => selecionarSugestao(p)}
+                  >
+                    <div>
+                      <strong>{p.nome}</strong>
+                      <small>Código: {p.codigo}</small>
+                    </div>
+                    <div className="pdv-sugestao-meta">
+                      <span>R$ {Number(p.preco).toFixed(2)}</span>
+                      <small>Estoque: {p.quantidade}</small>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button type="submit" className="btn btn-primary">
             <Search size={18} /> Adicionar
           </button>
         </form>
+
 
         <div className="carrinho-lista">
           {carrinho.length === 0 ? (
