@@ -1,16 +1,18 @@
 import React, { useContext } from 'react';
 import { EstoqueContext } from '../context/EstoqueContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { TrendingUp, CalendarDays, ShoppingCart, FileSpreadsheet, FileText } from 'lucide-react';
+import { TrendingUp, CalendarDays, ShoppingCart, FileSpreadsheet, FileText, Wallet, PackageMinus } from 'lucide-react';
 import { baixarCSV, imprimirPDF } from '../utils/exportar';
+import { FORMAS_PAGAMENTO, nomePagamento } from '../utils/validade';
 
 export default function Relatorios() {
   const { movimentacoes } = useContext(EstoqueContext);
 
-  const cabecalhoExport = ['Data e Hora', 'Tipo', 'Itens', 'Total (R$)'];
+  const cabecalhoExport = ['Data e Hora', 'Tipo', 'Pagamento', 'Itens', 'Total (R$)'];
   const linhasExport = () => movimentacoes.map(m => [
     new Date(m.data).toLocaleString('pt-BR'),
     m.tipo.toUpperCase(),
+    m.tipo === 'saida' ? nomePagamento(m.pagamento) : '',
     m.itens.map(i => `${i.quantidadeVendida}x ${i.nome}`).join(', '),
     Number(m.total).toFixed(2).replace('.', ','),
   ]);
@@ -23,6 +25,18 @@ export default function Relatorios() {
 
   const vendasDoMes = movimentacoes.filter(m => m.tipo === 'saida' && new Date(m.data) >= primeiroDiaMes);
   const faturamentoTotal = vendasDoMes.reduce((acc, m) => acc + m.total, 0);
+  const custoVendas = vendasDoMes.reduce((acc, m) => acc + (m.custo_total || 0), 0);
+  const lucroBruto = faturamentoTotal - custoVendas;
+  const perdasTotal = movimentacoes
+    .filter(m => m.tipo === 'perda' && new Date(m.data) >= primeiroDiaMes)
+    .reduce((acc, m) => acc + m.total, 0);
+  const lucroLiquido = lucroBruto - perdasTotal;
+
+  const porPagamento = { dinheiro: 0, pix: 0, cartao: 0 };
+  vendasDoMes.forEach(m => {
+    const forma = porPagamento[m.pagamento] !== undefined ? m.pagamento : 'dinheiro';
+    porPagamento[forma] += m.total;
+  });
 
   // Agrupa quantidades por produto
   const agrupado = {};
@@ -76,6 +90,43 @@ export default function Relatorios() {
             <div className="stat-value" style={{ fontSize: '1.3rem' }}>R$ {faturamentoTotal.toFixed(2)}</div>
             <div className="stat-label">Faturamento no mês</div>
           </div>
+        </div>
+      </div>
+
+      {/* Lucro, perdas e formas de pagamento */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: '#d1fae5' }}><Wallet size={22} color="#059669" /></div>
+          <div>
+            <div className="stat-value" style={{ fontSize: '1.3rem', color: lucroLiquido >= 0 ? '#059669' : '#dc2626' }}>R$ {lucroLiquido.toFixed(2)}</div>
+            <div className="stat-label">Lucro líquido (faturamento − custo − perdas)</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: '#e0e7ff' }}><TrendingUp size={22} color="#4f46e5" /></div>
+          <div>
+            <div className="stat-value" style={{ fontSize: '1.3rem' }}>R$ {lucroBruto.toFixed(2)}</div>
+            <div className="stat-label">Lucro bruto (custo R$ {custoVendas.toFixed(2)})</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: '#fee2e2' }}><PackageMinus size={22} color="#dc2626" /></div>
+          <div>
+            <div className="stat-value" style={{ fontSize: '1.3rem', color: '#dc2626' }}>R$ {perdasTotal.toFixed(2)}</div>
+            <div className="stat-label">Perdas/descartes no mês</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ fontWeight: '700', marginBottom: '14px', color: 'var(--secondary)' }}>Vendas por forma de pagamento (mês)</h3>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {FORMAS_PAGAMENTO.map(f => (
+            <div key={f.id} style={{ flex: '1 1 160px', padding: '12px 16px', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8 }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{f.label}</div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>R$ {porPagamento[f.id].toFixed(2)}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -140,6 +191,7 @@ export default function Relatorios() {
               <tr>
                 <th>Data e Hora</th>
                 <th>Tipo</th>
+                <th>Pagamento</th>
                 <th>Itens</th>
                 <th style={{ textAlign: 'right' }}>Total</th>
               </tr>
@@ -148,13 +200,19 @@ export default function Relatorios() {
               {movimentacoes.slice(0, 15).map(m => (
                 <tr key={m.id}>
                   <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(m.data).toLocaleString('pt-BR')}</td>
-                  <td><span className={`badge ${m.tipo === 'entrada' ? 'badge-green' : 'badge-blue'}`}>{m.tipo.toUpperCase()}</span></td>
-                  <td style={{ fontSize: '0.85rem' }}>{m.itens.map(i => `${i.quantidadeVendida}x ${i.nome}`).join(', ')}</td>
-                  <td style={{ textAlign: 'right', fontWeight: '700', color: '#059669' }}>R$ {Number(m.total).toFixed(2)}</td>
+                  <td><span className={`badge ${m.tipo === 'perda' ? 'badge-red' : m.tipo === 'entrada' ? 'badge-green' : 'badge-blue'}`}>{m.tipo.toUpperCase()}</span></td>
+                  <td style={{ fontSize: '0.85rem' }}>{m.tipo === 'saida' ? nomePagamento(m.pagamento) : '—'}</td>
+                  <td style={{ fontSize: '0.85rem' }}>
+                    {m.itens.map(i => `${i.quantidadeVendida}x ${i.nome}`).join(', ')}
+                    {m.tipo === 'perda' && m.itens[0]?.motivo ? ` (${m.itens[0].motivo})` : ''}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: '700', color: m.tipo === 'perda' ? '#dc2626' : '#059669' }}>
+                    {m.tipo === 'perda' ? '− ' : ''}R$ {Number(m.total).toFixed(2)}
+                  </td>
                 </tr>
               ))}
               {movimentacoes.length === 0 && (
-                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>Nenhuma operação ainda.</td></tr>
+                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>Nenhuma operação ainda.</td></tr>
               )}
             </tbody>
           </table>

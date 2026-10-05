@@ -41,8 +41,14 @@ export function EstoqueProvider({ children }) {
       setCarregando(false);
       return;
     }
-    setProdutos(p.data.map(x => ({ ...x, quantidade: Number(x.quantidade), preco: Number(x.preco) })));
-    setMovimentacoes(m.data.map(x => ({ ...x, total: Number(x.total) })));
+    setProdutos(p.data.map(x => ({
+      ...x,
+      quantidade: Number(x.quantidade),
+      preco: Number(x.preco),
+      preco_custo: Number(x.preco_custo || 0),
+      estoque_minimo: Number(x.estoque_minimo ?? 5),
+    })));
+    setMovimentacoes(m.data.map(x => ({ ...x, total: Number(x.total), custo_total: Number(x.custo_total || 0) })));
     setCarregando(false);
   };
 
@@ -78,7 +84,7 @@ export function EstoqueProvider({ children }) {
     avisarErro('remover produto', error);
   };
 
-  const registrarCaixa = async (itensCarrinho, tipo = 'saida') => {
+  const registrarCaixa = async (itensCarrinho, tipo = 'saida', pagamento = 'dinheiro') => {
     const atualizados = [];
     const novos = produtosRef.current.map(p => {
       const item = itensCarrinho.find(i => i.codigo === p.codigo);
@@ -95,7 +101,9 @@ export function EstoqueProvider({ children }) {
       data: new Date().toISOString(),
       itens: itensCarrinho,
       tipo,
-      total: itensCarrinho.reduce((acc, item) => acc + (item.preco * item.quantidadeVendida), 0)
+      pagamento: tipo === 'saida' ? pagamento : null,
+      total: itensCarrinho.reduce((acc, item) => acc + (item.preco * item.quantidadeVendida), 0),
+      custo_total: itensCarrinho.reduce((acc, item) => acc + ((item.preco_custo || 0) * item.quantidadeVendida), 0),
     };
     setMovimentacoes(prev => [novaMovimentacao, ...prev]);
 
@@ -104,6 +112,34 @@ export function EstoqueProvider({ children }) {
       supabase.from('movimentacoes').insert(novaMovimentacao),
     ]);
     avisarErro('registrar venda', r1.error || r2.error);
+  };
+
+  // Perda/descarte: tira do estoque sem gerar receita. O valor perdido é o custo
+  // (ou o preço de venda, se o custo não estiver cadastrado).
+  const registrarPerda = async (codigo, quantidade, motivo = 'Vencimento') => {
+    const produto = produtosRef.current.find(p => p.codigo === codigo);
+    if (!produto || quantidade <= 0) return;
+    const qtd = Math.min(quantidade, produto.quantidade);
+    const atualizado = { ...produto, quantidade: produto.quantidade - qtd };
+    setProdutos(prev => prev.map(p => p.codigo === codigo ? atualizado : p));
+
+    const unitario = produto.preco_custo > 0 ? produto.preco_custo : produto.preco;
+    const novaMovimentacao = {
+      id: Date.now(),
+      data: new Date().toISOString(),
+      tipo: 'perda',
+      pagamento: null,
+      itens: [{ codigo, nome: produto.nome, quantidadeVendida: qtd, preco: produto.preco, preco_custo: produto.preco_custo || 0, motivo }],
+      total: unitario * qtd,
+      custo_total: unitario * qtd,
+    };
+    setMovimentacoes(prev => [novaMovimentacao, ...prev]);
+
+    const [r1, r2] = await Promise.all([
+      supabase.from('produtos').update({ quantidade: atualizado.quantidade }).eq('codigo', codigo),
+      supabase.from('movimentacoes').insert(novaMovimentacao),
+    ]);
+    avisarErro('registrar perda', r1.error || r2.error);
   };
 
   const buscarProduto = (codigo) => {
@@ -116,7 +152,7 @@ export function EstoqueProvider({ children }) {
 
   return (
     <EstoqueContext.Provider value={{
-      produtos, movimentacoes, addProduto, editProduto, removeProduto, registrarCaixa, buscarProduto
+      produtos, movimentacoes, addProduto, editProduto, removeProduto, registrarCaixa, registrarPerda, buscarProduto
     }}>
       {children}
     </EstoqueContext.Provider>
