@@ -1,8 +1,9 @@
 import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { EstoqueContext } from '../context/EstoqueContext';
-import { Package, TrendingDown, AlertTriangle, DollarSign, ShoppingCart, PlusCircle, BarChart3, Clock } from 'lucide-react';
+import { Package, TrendingDown, AlertTriangle, DollarSign, ShoppingCart, PlusCircle, BarChart3, Clock, CalendarClock } from 'lucide-react';
 import { alertasDeRuptura } from '../utils/previsao';
+import { estaVencido, venceEmBreve, diasParaVencer, formatarData, estoqueAcabando } from '../utils/validade';
 
 export default function Dashboard() {
   const { produtos, movimentacoes } = useContext(EstoqueContext);
@@ -10,7 +11,11 @@ export default function Dashboard() {
   const totalProdutos = produtos.length;
   const totalItens = produtos.reduce((acc, p) => acc + p.quantidade, 0);
   const valorEstoque = produtos.reduce((acc, p) => acc + (p.quantidade * p.preco), 0);
-  const estoqueBaixo = produtos.filter(p => p.quantidade <= 5);
+  const estoqueBaixo = produtos.filter(estoqueAcabando);
+  const vencidos = produtos.filter(estaVencido);
+  const vencendo = produtos
+    .filter(p => venceEmBreve(p, 3))
+    .sort((a, b) => diasParaVencer(a.validade) - diasParaVencer(b.validade));
   const previsoes = alertasDeRuptura(produtos, movimentacoes, 7);
 
   const hoje = new Date();
@@ -71,7 +76,7 @@ export default function Dashboard() {
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <AlertTriangle size={20} color="#f97316" />
-            <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Estoque Baixo (até 5 un.)</h3>
+            <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Estoque Acabando (abaixo do mínimo)</h3>
           </div>
           {estoqueBaixo.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nenhum produto em situação crítica.</p>
@@ -80,7 +85,7 @@ export default function Dashboard() {
               {estoqueBaixo.map(p => (
                 <div key={p.codigo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #fed7aa' }}>
                   <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{p.nome}</span>
-                  <span className="badge badge-red">{p.quantidade} un.</span>
+                  <span className="badge badge-red">{p.quantidade} un. (mín. {p.estoque_minimo ?? 5})</span>
                 </div>
               ))}
             </div>
@@ -106,6 +111,40 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Validade */}
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <CalendarClock size={20} color="#dc2626" />
+          <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Validade (vencidos e próximos 3 dias)</h3>
+        </div>
+        {vencidos.length === 0 && vencendo.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nenhum produto vencido ou perto de vencer.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {vencidos.map(p => (
+              <div key={p.codigo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{p.nome} — {p.quantidade} un.</span>
+                <span className="badge badge-red">VENCIDO em {formatarData(p.validade)}</span>
+              </div>
+            ))}
+            {vencendo.map(p => {
+              const d = diasParaVencer(p.validade);
+              return (
+                <div key={p.codigo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{p.nome} — {p.quantidade} un.</span>
+                  <span className="badge badge-yellow">{d === 0 ? 'Vence hoje' : `Vence em ${d} dia(s)`} · {formatarData(p.validade)}</span>
+                </div>
+              );
+            })}
+            {vencidos.length > 0 && (
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Registre o descarte dos vencidos em <Link to="/consulta">Estoque</Link> para o relatório contabilizar a perda.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Previsão de ruptura */}

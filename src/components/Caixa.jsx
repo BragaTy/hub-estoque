@@ -1,6 +1,7 @@
 import React, { useState, useContext, useMemo, useRef } from 'react';
 import { EstoqueContext } from '../context/EstoqueContext';
 import { ShoppingCart, Trash2, CheckCircle, Search } from 'lucide-react';
+import { estaVencido, venceEmBreve, diasParaVencer, formatarData, FORMAS_PAGAMENTO, nomePagamento } from '../utils/validade';
 
 // minúsculas + remoção de acentos (Unicode NFD)
 const normalizar = (s) =>
@@ -10,6 +11,7 @@ export default function Caixa() {
   const { buscarProduto, registrarCaixa, produtos } = useContext(EstoqueContext);
   const [codigoBusca, setCodigoBusca] = useState('');
   const [carrinho, setCarrinho] = useState([]);
+  const [pagamento, setPagamento] = useState('dinheiro');
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
@@ -24,6 +26,10 @@ export default function Caixa() {
     const produto = buscarProduto(codigo);
     if (!produto) { setErro(`Produto "${codigo}" não encontrado.`); return; }
     if (produto.quantidade <= 0) { setErro(`"${produto.nome}" está sem estoque.`); return; }
+    if (estaVencido(produto)) {
+      setErro(`"${produto.nome}" VENCEU em ${formatarData(produto.validade)} e não pode ser vendido. Registre o descarte em Estoque.`);
+      return;
+    }
 
     setCarrinho(prev => {
       const existente = prev.find(i => i.codigo === produto.codigo);
@@ -102,9 +108,11 @@ export default function Caixa() {
 
   const finalizarVenda = () => {
     if (!carrinho.length) return;
-    registrarCaixa(carrinho, 'saida');
+    const vencido = carrinho.find(i => estaVencido(produtos.find(p => p.codigo === i.codigo) || i));
+    if (vencido) { setErro(`"${vencido.nome}" está vencido. Remova do carrinho.`); return; }
+    registrarCaixa(carrinho, 'saida', pagamento);
     setCarrinho([]);
-    setSucesso('Venda finalizada com sucesso! Estoque atualizado.');
+    setSucesso(`Venda finalizada (${nomePagamento(pagamento)})! Estoque atualizado.`);
     setErro('');
   };
 
@@ -177,6 +185,11 @@ export default function Caixa() {
                 <div className="carrinho-item-info">
                   <h4>{idx + 1}. {item.nome}</h4>
                   <p>Código: <strong>{item.codigo}</strong> · Preço unit.: R$ {item.preco.toFixed(2)}</p>
+                  {venceEmBreve(item) && (
+                    <p style={{ color: '#d97706', fontWeight: 600 }}>
+                      ⚠ Vence {diasParaVencer(item.validade) === 0 ? 'hoje' : `em ${diasParaVencer(item.validade)} dia(s)`} ({formatarData(item.validade)})
+                    </p>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -203,8 +216,20 @@ export default function Caixa() {
               <span>TOTAL DA VENDA</span>
               <div className="carrinho-total-valor">R$ {total.toFixed(2)}</div>
             </div>
+            <div style={{ marginTop: '16px' }}>
+              <label className="form-label">Forma de pagamento</label>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {FORMAS_PAGAMENTO.map(f => (
+                  <button key={f.id} type="button"
+                    className={`btn ${pagamento === f.id ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setPagamento(f.id)}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button onClick={finalizarVenda} className="btn btn-success btn-block" style={{ marginTop: '14px', padding: '16px', fontSize: '1.1rem' }}>
-              <CheckCircle size={22} /> Finalizar Venda
+              <CheckCircle size={22} /> Finalizar Venda ({nomePagamento(pagamento)})
             </button>
           </>
         )}

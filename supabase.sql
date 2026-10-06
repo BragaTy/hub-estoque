@@ -18,10 +18,12 @@ create table if not exists movimentacoes (
 alter table produtos enable row level security;
 alter table movimentacoes enable row level security;
 
--- Acesso total via chave anon (o login do app é local, sem Supabase Auth).
--- Para mais segurança no futuro, migre para Supabase Auth e restrinja estas políticas.
+-- Acesso total via chave anon (o login do app Ã© local, sem Supabase Auth).
+-- Para mais seguranÃ§a no futuro, migre para Supabase Auth e restrinja estas polÃ­ticas.
+drop policy if exists "acesso produtos" on produtos;
 create policy "acesso produtos" on produtos for all using (true) with check (true);
+drop policy if exists "acesso movimentacoes" on movimentacoes;
 create policy "acesso movimentacoes" on movimentacoes for all using (true) with check (true);
 
 -- Dados iniciais (do antigo banco.txt)
--- Gere com: node scripts/gerar-seed.mjs > seed.sql   e rode o resultado também no SQL Editor
+-- Gere com: node scripts/gerar-seed.mjs > seed.sql   e rode o resultado tambÃ©m no SQL Editor
