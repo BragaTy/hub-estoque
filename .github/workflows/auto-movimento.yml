@@ -1,0 +1,36 @@
+name: Movimento automático (vendas, descarte e reposição)
+
+# Roda a cada 2h no horário comercial (08h-20h em Brasília = 11h-23h UTC).
+# Também mantém o Supabase ativo. Para PAUSAR sem apagar nada:
+#   GitHub > Settings > Secrets and variables > Actions > Variables > AUTO_VENDAS = false
+
+on:
+  schedule:
+    - cron: '0 11-23/2 * * *'
+  workflow_dispatch:
+
+jobs:
+  movimento:
+    if: ${{ vars.AUTO_VENDAS != 'false' }}
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Descartar vencidos e repor estoque
+        run: |
+          status=$(curl -s -o r.json -w "%{http_code}" -X POST \
+            "$SUPABASE_URL/rest/v1/rpc/repor_e_descartar" \
+            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" -d '{}')
+          echo "HTTP $status"; cat r.json; echo
+          test "$status" = "200"
+
+      - name: Gerar vendas
+        run: |
+          status=$(curl -s -o r.json -w "%{http_code}" -X POST \
+            "$SUPABASE_URL/rest/v1/rpc/gerar_vendas_automaticas" \
+            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" -d '{"n": 4}')
+          echo "HTTP $status"; cat r.json; echo
+          test "$status" = "200"
