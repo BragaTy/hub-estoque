@@ -1,12 +1,12 @@
 name: Movimento automático (vendas, descarte e reposição)
 
-# Roda a cada 2h no horário comercial (08h-20h em Brasília = 11h-23h UTC).
+# Roda a cada 30 min no horário comercial (08h-20h em Brasília = 11h-23h UTC).
 # Também mantém o Supabase ativo. Para PAUSAR sem apagar nada:
 #   GitHub > Settings > Secrets and variables > Actions > Variables > AUTO_VENDAS = false
 
 on:
   schedule:
-    - cron: '0 11-23/2 * * *'
+    - cron: '*/30 11-23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -31,6 +31,6 @@ jobs:
           status=$(curl -s -o r.json -w "%{http_code}" -X POST \
             "$SUPABASE_URL/rest/v1/rpc/gerar_vendas_automaticas" \
             -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
-            -H "Content-Type: application/json" -d '{"n": 4}')
+            -H "Content-Type: application/json" -d '{"n": 8}')
           echo "HTTP $status"; cat r.json; echo
           test "$status" = "200"

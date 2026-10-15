@@ -67,10 +67,12 @@ begin
     descartados := descartados + 1;
   end loop;
 
-  -- 2) vencidos, ou abaixo do mínimo -> entrada de lote novo
+  -- 2) vencidos, ou com estoque abaixo de um limite folgado -> entrada de unidades
+  --    (limite = o maior entre 40 e 4x o mínimo; reposição leva o estoque a 100 ou 10x o mínimo)
+  --    A validade só é renovada quando o lote venceu; se não, mantém a data atual.
   for p in select * from produtos
-           where validade < current_date or quantidade <= estoque_minimo loop
-    repor := greatest(p.estoque_minimo * 5, 30) - p.quantidade;
+           where validade < current_date or quantidade <= greatest(40, estoque_minimo * 4) loop
+    repor := greatest(100, p.estoque_minimo * 10) - p.quantidade;
     continue when repor <= 0;
     insert into movimentacoes (id, data, tipo, pagamento, total, custo_total, itens)
     values (
@@ -83,7 +85,8 @@ begin
     update produtos
     set quantidade = p.quantidade + repor,
         validade = case when p.validade is null then null
-                        else current_date + (4 + floor(random() * 11)::int) end
+                        when p.validade < current_date then current_date + (5 + floor(random() * 10)::int)
+                        else p.validade end
     where codigo = p.codigo;
     repostos := repostos + 1;
   end loop;
